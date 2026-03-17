@@ -8,13 +8,16 @@
     "server",
     "server/packages/*",
     "web",
-    "cli"
+    "cli",
+    "desktop"
   ],
   "scripts": {
     "dev:server": "npm run dev --workspace=server",
     "dev:web": "npm run dev --workspace=web",
-    "build:web": "npm run build --workspace=web",
-    "build": "npm run build --workspaces",
+    "dev:desktop": "npm run dev --workspace=desktop",
+    "build:web": "npm run build -w web",
+    "build:desktop": "npm run build -w desktop",
+    "build": "npm run build --workspaces --if-present",
     "db:migrate": "npm run db:migrate --workspace=server",
     "db:generate": "npm run db:generate --workspace=server",
     "lint": "npm run lint --workspaces --if-present"

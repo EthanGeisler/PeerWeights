@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { apiFetch, setAccessToken, refreshAccessToken, ApiError } from "../api";
+import { syncAuthToken } from "../desktop";
 import type { ApiUser, ApiAuthResponse } from "../types";
 
 interface AuthState {
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
       setAccessToken(data.accessToken);
       localStorage.setItem("pw_refresh_token", data.refreshToken);
+      syncAuthToken(data.accessToken).catch(() => {});
       set({ user: data.user, loading: false });
     } catch (err) {
       set({
@@ -46,6 +48,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
       setAccessToken(data.accessToken);
       localStorage.setItem("pw_refresh_token", data.refreshToken);
+      syncAuthToken(data.accessToken).catch(() => {});
       set({ user: data.user, loading: false });
     } catch (err) {
       set({
@@ -68,6 +71,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     setAccessToken(null);
     localStorage.removeItem("pw_refresh_token");
+    syncAuthToken(null).catch(() => {});
     set({ user: null, error: null });
   },
 
@@ -86,6 +90,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       const user = await apiFetch<ApiUser>("/auth/me");
+      syncAuthToken(newToken).catch(() => {});
       set({ user, loading: false });
     } catch {
       localStorage.removeItem("pw_refresh_token");

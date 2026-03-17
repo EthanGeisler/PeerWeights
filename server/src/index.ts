@@ -23,6 +23,8 @@ app.use(helmet({
 const allowedOrigins = [
   config.CORS_ORIGIN,
   ...config.CORS_ADDITIONAL_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
+  "tauri://localhost",        // Tauri desktop (macOS/Linux)
+  "https://tauri.localhost",  // Tauri desktop (Windows)
 ];
 app.use(
   cors({

@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "./stores/authStore";
+import { isDesktop } from "./desktop";
 import Home from "./pages/Home";
 import Search from "./pages/Search";
 import ModelDetail from "./pages/ModelDetail";
@@ -11,6 +12,8 @@ import Library from "./pages/Library";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
+
+const Downloads = lazy(() => import("./pages/Downloads"));
 
 export default function App() {
   const { user, loading, loadSession, logout } = useAuthStore();
@@ -34,6 +37,7 @@ export default function App() {
             {user ? (
               <>
                 <Link to="/library">Library</Link>
+                {isDesktop && <Link to="/downloads">Downloads</Link>}
                 {(user.role === "CREATOR" || user.role === "ADMIN") && (
                   <Link to="/dashboard">Dashboard</Link>
                 )}
@@ -60,6 +64,9 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/library" element={<Library />} />
           <Route path="/dashboard" element={<CreatorDashboard />} />
+          {isDesktop && (
+            <Route path="/downloads" element={<Suspense fallback={<p>Loading...</p>}><Downloads /></Suspense>} />
+          )}
           <Route path="/checkout/success" element={<CheckoutSuccess />} />
           <Route path="/checkout/cancel" element={<CheckoutCancel />} />
           <Route path="/:username/:slug" element={<ModelDetail />} />

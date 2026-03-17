@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { apiFetch, ApiError } from "../api";
+import { apiFetch, getAccessToken, ApiError } from "../api";
+import { isDesktop, fetchAndStartTorrent } from "../desktop";
 import type { ApiLicense, ApiCheckoutResult } from "../types";
 
 interface LibraryState {
@@ -35,10 +36,17 @@ export const useLibraryStore = create<LibraryState>((set) => ({
       body: JSON.stringify({ modelId }),
     });
 
-    // If free, refresh licenses
+    // If free, refresh licenses and auto-download in desktop
     if (result.free) {
       const data = await apiFetch<{ licenses: ApiLicense[] }>("/licenses");
       set({ licenses: Array.isArray(data.licenses) ? data.licenses : [] });
+
+      if (isDesktop) {
+        const token = getAccessToken();
+        if (token) {
+          fetchAndStartTorrent(result.modelId, result.modelId, token).catch(() => {});
+        }
+      }
     }
 
     return result;

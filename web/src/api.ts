@@ -1,4 +1,5 @@
-const API_BASE = "/api";
+const isDesktop = Boolean((window as any).__TAURI_INTERNALS__);
+const API_BASE = isDesktop ? "https://peerweights.com/api" : "/api";
 
 let accessToken: string | null = null;
 

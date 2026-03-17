@@ -3,7 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { useModelStore } from "../stores/modelStore";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useAuthStore } from "../stores/authStore";
-import { apiDownload } from "../api";
+import { apiDownload, getAccessToken } from "../api";
+import { isDesktop, fetchAndStartTorrent } from "../desktop";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -41,8 +42,14 @@ export default function ModelDetail() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const filename = `${m.username}-${m.slug}.torrent`;
-      await apiDownload(`/torrents/${m.id}/latest/file`, filename);
+      if (isDesktop && m.latestVersion) {
+        const token = getAccessToken();
+        if (!token) throw new Error("Not authenticated");
+        await fetchAndStartTorrent(m.id, m.latestVersion.id, token);
+      } else {
+        const filename = `${m.username}-${m.slug}.torrent`;
+        await apiDownload(`/torrents/${m.id}/latest/file`, filename);
+      }
     } catch (err: any) {
       alert(err.message || "Download failed");
     } finally {
@@ -128,7 +135,7 @@ export default function ModelDetail() {
                   className="btn-primary"
                   style={{ width: "100%", marginBottom: "0.5rem" }}
                 >
-                  {downloading ? "Preparing..." : "Download .torrent"}
+                  {downloading ? "Preparing..." : isDesktop ? "Download to Library" : "Download .torrent"}
                 </button>
                 <div style={{ color: "var(--green)", fontWeight: 600, fontSize: "0.85rem", textAlign: "center" }}>
                   Owned
