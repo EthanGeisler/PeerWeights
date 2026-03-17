@@ -18,6 +18,7 @@ export default function ModelDetail() {
   const { currentModel, currentModelLoading, fetchModelByNamespace, clearCurrentModel } = useModelStore();
   const { checkout, licenses } = useLibraryStore();
   const { user } = useAuthStore();
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (username && slug) {
@@ -36,7 +37,6 @@ export default function ModelDetail() {
 
   const m = currentModel;
   const owned = licenses.some((l) => l.model.id === m.id && l.status === "ACTIVE");
-  const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
     setDownloading(true);
