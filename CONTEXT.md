@@ -97,22 +97,23 @@ Config at `~/.peerweights/config.json`
 - `POST /stripe/onboard` — start Stripe Connect onboarding
 - `GET /stripe/callback?token=` — complete onboarding
 
-### Models (`/api/models/*`)
-- `GET /` — list published models (search, format, tag, sort, pagination)
-- `GET /user/:username` — user's public profile + models
-- `GET /user/:username/:slug` — model detail by namespace
-- `POST /` — create model (requires CREATOR)
-- `PUT /:id` — update model
-- `POST /:id/publish` — publish model
-- `POST /:id/unpublish` — unpublish model
-- `POST /:id/versions` — create version
-- `POST /:id/versions/:versionId/upload` — upload model file (up to 200GB)
-- `POST /:id/cover` — upload cover image
-- `GET /:id/cover` — serve cover image
+### Models (`/api/*`)
+- `GET /models` — list published models (search, format, tag, sort, pagination)
+- `GET /users/:username` — user's public profile + models
+- `GET /models/:username/:slug` — model detail by namespace
+- `GET /creator/models` — creator's own models list
+- `POST /creator/models` — create model (requires CREATOR)
+- `PUT /creator/models/:id` — update model
+- `PATCH /creator/models/:id/publish` — publish model
+- `PATCH /creator/models/:id/unpublish` — unpublish model
+- `POST /creator/models/:id/versions` — create version
+- `POST /creator/models/:id/versions/:versionId/upload` — upload model file (up to 200GB)
+- `POST /creator/models/:id/cover` — upload cover image
+- `GET /covers/:modelId` — serve cover image
 
 ### Torrents (`/api/torrents/*`)
-- `GET /model/:modelId/latest` — get latest torrent info (requires license)
-- `GET /model/:modelId/latest/file` — download .torrent file (requires license)
+- `GET /:modelId/latest` — get latest torrent info (requires license)
+- `GET /:modelId/latest/file` — download .torrent file (requires license)
 - `POST /seed-stats` — report seed progress
 - `GET /seed-stats/me` — get user's seed stats
 
@@ -157,14 +158,7 @@ ssh root@204.168.133.38 "cd /opt/peerweights && npm run build:web"
 ssh root@204.168.133.38 "systemctl restart peerweights"
 ```
 
-**Not yet deployed.** Still needs:
-- [ ] nginx server block for peerweights.com (port 7480, try_files for BrowserRouter)
-- [ ] SSL via certbot
-- [ ] systemd service file
-- [ ] `npm run build:web` on VPS
-- [ ] Stripe webhook endpoint configured in Stripe dashboard
-- [ ] Transmission daemon configured for model seeding
-- [ ] MODELS_DIR created (`/opt/peerweights/models`)
+**Deployed (2026-03-17).** nginx, SSL (certbot), systemd service, Transmission daemon, and Stripe webhook all configured and running. Smoke test passed: register, create model, upload, purchase, download torrent flow all working.
 
 ---
 
@@ -184,11 +178,11 @@ ssh root@204.168.133.38 "systemctl restart peerweights"
 
 ## What's Next
 
-### Immediate (deploy MVP)
-- [ ] Deploy to VPS (nginx, SSL, systemd, clone, install, migrate, build)
-- [ ] Configure Stripe webhook endpoint
-- [ ] Set up Transmission for model seeding
-- [ ] Smoke test full flow: register → create model → upload → purchase → download torrent
+### ~~Immediate (deploy MVP)~~ DONE (2026-03-17)
+- [x] Deploy to VPS (nginx, SSL, systemd, clone, install, migrate, build)
+- [x] Configure Stripe webhook endpoint
+- [x] Set up Transmission for model seeding
+- [x] Smoke test full flow: register → create model → upload → purchase → download torrent
 
 ### Phase 2 — Growth
 - [ ] Electron desktop client (persistent seeding, WebTorrent)
