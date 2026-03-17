@@ -25,6 +25,12 @@ A **torrent-based marketplace for AI models, LoRAs, and datasets**. Think "Steam
 - Creator pro accounts with analytics and featured placement (phase 2)
 - Seedbox-as-a-service for guaranteed high-availability seeding (phase 3)
 
+**Core policies:**
+- Account required for all downloads (enables seed tracking)
+- **Mandatory 1.0 seed ratio** — users must upload as much as they downloaded before stopping seeding. Enforced in UI, validated server-side, trust-based (bypassable by closing app).
+- Namespaced model addressing: `username/model-name`
+- Model metadata auto-detected from file headers (best effort, creator can override)
+
 ---
 
 ## What Has Been Built
@@ -32,10 +38,12 @@ A **torrent-based marketplace for AI models, LoRAs, and datasets**. Think "Steam
 Nothing yet — project initialized 2026-03-17.
 
 **Tech stack (planned, based on BoilerDeck architecture):**
-- Server: Node.js + TypeScript + Express + Prisma + PostgreSQL
-- Web: Vite + React
-- Distribution: BitTorrent (Transmission daemon on VPS for seeding)
-- Payments: Stripe Connect (destination charges)
+- Server: Node.js + TypeScript + Express + Prisma + PostgreSQL (port 7480)
+- Web: Vite + React (BrowserRouter)
+- Electron: Desktop client with WebTorrent (persistent seeding, unlike BoilerDeck)
+- CLI: `peerweights` command-line tool (pull/push/search/seed)
+- Distribution: BitTorrent (Transmission daemon on VPS for seeding, no artificial file size cap)
+- Payments: Stripe Connect (destination charges, 5% platform fee)
 - Auth: JWT (access + refresh tokens)
 
 **Heritage:** PeerWeights is a pivot of the BoilerDeck game distribution platform (`C:\Users\eface\peerplay\`). The core distribution, auth, and payment infrastructure will be adapted from that codebase. Key differences from BoilerDeck:
@@ -80,6 +88,7 @@ Will share the same Hetzner VPS pattern as BoilerDeck, or potentially the same V
 - [ ] API for programmatic model downloads
 
 ### Phase 3 — Scale
+- [ ] **Bitcoin Lightning payments** — alternative to Stripe via BTCPay Server, lower fees, no chargebacks, good for microtransactions. Alongside Stripe, not replacing it.
 - [ ] Seedbox tiers for creators
 - [ ] Model versioning and delta updates
 - [ ] Organization accounts
