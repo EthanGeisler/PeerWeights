@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  CREATOR
+  ADMIN
+}
+
+enum ModelStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+enum VersionStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ModelFormat {
+  SAFETENSORS
+  GGUF
+  ONNX
+  PYTORCH
+  PICKLE
+  HUGGINGFACE_DIR
+  OTHER
+}
+
+enum LicenseStatus {
+  ACTIVE
+  REVOKED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  username         String    @unique
+  passwordHash     String    @map("password_hash")
+  displayName      String    @map("display_name")
+  role             UserRole  @default(USER)
+  stripeCustomerId String?   @map("stripe_customer_id")
+  bio              String    @default("")
+  avatarUrl        String?   @map("avatar_url")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  creator          Creator?
+  licenses         License[]
+  payments         Payment[]
+  refreshTokens    RefreshToken[]
+  seedStats        SeedStats[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Creator {
+  id                   String   @id @default(uuid())
+  userId               String   @unique @map("user_id")
+  stripeAccountId      String?  @map("stripe_account_id")
+  stripeOnboarded      Boolean  @default(false) @map("stripe_onboarded")
+  stripePayoutsEnabled Boolean  @default(false) @map("stripe_payouts_enabled")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  models               Model[]
+
+  @@map("creators")
+}
+
+model Model {
+  id             String      @id @default(uuid())
+  creatorId      String      @map("creator_id")
+  slug           String
+  name           String
+  description    String      @default("")
+  priceCents     Int         @map("price_cents")
+  status         ModelStatus @default(DRAFT)
+  format         ModelFormat @default(OTHER)
+  architecture   String?
+  parameterCount BigInt?     @map("parameter_count")
+  baseModel      String?     @map("base_model")
+  quantization   String?
+  license        String      @default("")
+  tags           String[]    @default([])
+  coverImageUrl  String?     @map("cover_image_url")
+  readmeContent  String      @default("") @map("readme_content")
+  downloadCount  Int         @default(0) @map("download_count")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  creator        Creator     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  versions       ModelVersion[]
+  licenses       License[]
+  payments       Payment[]
+
+  @@unique([creatorId, slug])
+  @@map("models")
+}
+
+model ModelVersion {
+  id            String        @id @default(uuid())
+  modelId       String        @map("model_id")
+  version       String
+  torrentId     String?       @unique @map("torrent_id")
+  fileSizeBytes BigInt        @default(0) @map("file_size_bytes")
+  format        ModelFormat   @default(OTHER)
+  changelog     String        @default("")
+  metadata      Json?
+  status        VersionStatus @default(PROCESSING)
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  model         Model         @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  torrent       Torrent?      @relation(fields: [torrentId], references: [id])
+  seedStats     SeedStats[]
+
+  @@unique([modelId, version])
+  @@map("model_versions")
+}
+
+model Torrent {
+  id          String        @id @default(uuid())
+  infoHash    String        @unique @map("info_hash")
+  magnetUri   String        @map("magnet_uri")
+  torrentFile Bytes         @map("torrent_file")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  version     ModelVersion?
+
+  @@map("torrents")
+}
+
+model License {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  modelId   String        @map("model_id")
+  paymentId String?       @unique @map("payment_id")
+  status    LicenseStatus @default(ACTIVE)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model     Model         @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  payment   Payment?      @relation(fields: [paymentId], references: [id])
+
+  @@unique([userId, modelId])
+  @@map("licenses")
+}
+
+model Payment {
+  id                      String        @id @default(uuid())
+  userId                  String        @map("user_id")
+  modelId                 String        @map("model_id")
+  stripePaymentIntentId   String?       @unique @map("stripe_payment_intent_id")
+  stripeCheckoutSessionId String?       @unique @map("stripe_checkout_session_id")
+  amountCents             Int           @map("amount_cents")
+  platformFeeCents        Int           @map("platform_fee_cents")
+  status                  PaymentStatus @default(PENDING)
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  user                    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model                   Model         @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  license                 License?
+
+  @@map("payments")
+}
+
+model SeedStats {
+  id              String       @id @default(uuid())
+  userId          String       @map("user_id")
+  modelVersionId  String       @map("model_version_id")
+  bytesUploaded   BigInt       @default(0) @map("bytes_uploaded")
+  seedingSeconds  Int          @default(0) @map("seeding_seconds")
+  lastReportedAt  DateTime?    @map("last_reported_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modelVersion    ModelVersion @relation(fields: [modelVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, modelVersionId])
+  @@map("seed_stats")
+}
+
+model Tag {
+  id         String @id @default(uuid())
+  name       String @unique
+  modelCount Int    @default(0) @map("model_count")
+
+  @@map("tags")
+}

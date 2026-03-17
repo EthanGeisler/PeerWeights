@@ -9,3 +9,7 @@ Thumbs.db
 *.tgz
 coverage/
 .nyc_output/
+model-staging/
+*.safetensors
+*.gguf
+*.onnx

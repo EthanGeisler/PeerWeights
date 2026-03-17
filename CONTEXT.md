@@ -33,62 +33,172 @@ A **torrent-based marketplace for AI models, LoRAs, and datasets**. Think "Steam
 
 ---
 
-## What Has Been Built
+## What Has Been Built (as of 2026-03-17)
 
-Nothing yet — project initialized 2026-03-17.
+**Full MVP implemented.** All server packages, web frontend, CLI tool, and scripts are complete. Database migrated to VPS.
 
-**Tech stack (planned, based on BoilerDeck architecture):**
-- Server: Node.js + TypeScript + Express + Prisma + PostgreSQL (port 7480)
-- Web: Vite + React (BrowserRouter)
-- Electron: Desktop client with WebTorrent (persistent seeding, unlike BoilerDeck)
-- CLI: `peerweights` command-line tool (pull/push/search/seed)
-- Distribution: BitTorrent (Transmission daemon on VPS for seeding, no artificial file size cap)
-- Payments: Stripe Connect (destination charges, 5% platform fee)
-- Auth: JWT (access + refresh tokens)
+### Server (`server/`)
+Monorepo with 6 packages under `server/packages/`:
 
-**Heritage:** PeerWeights is a pivot of the BoilerDeck game distribution platform (`C:\Users\eface\peerplay\`). The core distribution, auth, and payment infrastructure will be adapted from that codebase. Key differences from BoilerDeck:
-- Model metadata instead of game metadata (architecture, parameter count, base model, format)
-- Model format detection instead of exe detection (safetensors, GGUF, ONNX, etc.)
-- No desktop client needed initially — web-first with torrent file downloads
-- Model preview/comparison tools instead of game screenshots
+| Package | Purpose | Key Files |
+|---------|---------|-----------|
+| **shared** | Config, DB, errors, middleware, Redis, Stripe | `config.ts` (Zod env), `db.ts` (Prisma+BigInt), `errors.ts` (AppError hierarchy), `middleware.ts` (JWT auth+roles), `redis.ts`, `stripe.ts` |
+| **auth** | Register, login, refresh, logout, creator onboarding | `service.ts` (bcrypt 12 rounds, token rotation), `schemas.ts` (username validation, reserved names), `creator.routes.ts` (Stripe Connect) |
+| **model** | Model CRUD, search, upload pipeline, format detection | `service.ts` (slugify, upload+torrent pipeline, Transmission RPC), `format-detector.ts` (safetensors/GGUF header parsing), `schemas.ts` |
+| **torrent** | Torrent creation, license-gated access, seed tracking | `service.ts` (create-torrent, announce list, seed ratio validation) |
+| **payment** | Stripe checkout, webhooks, free instant purchase | `service.ts` (destination charges, 5% fee, idempotent webhooks) |
+| **license** | License listing with seed stats | `service.ts` (enriched with ratio calculation) |
+
+**Entry point:** `server/src/index.ts` — Express 5, Stripe raw body first, helmet CORP, CORS, compression, morgan, 6 routers mounted at `/api/*`
+
+### Database (`server/prisma/schema.prisma`)
+10 models: User, RefreshToken, Creator, Model, ModelVersion, Torrent, License, Payment, SeedStats, Tag
+7 enums: UserRole, ModelStatus, VersionStatus, ModelFormat, LicenseStatus, PaymentStatus
+
+**Migration `20260317161528_init` applied to VPS database.**
+
+Key schema features:
+- User has `username` (unique, for namespace addressing)
+- Creator links to User (1:1), has `stripeAccountId`
+- Model has `format`, `architecture`, `parameterCount`, `baseModel`, `quantization`, `tags[]`, `readmeContent`, `downloadCount`
+- ModelVersion has `format`, `metadata` (Json), links to Torrent
+- SeedStats tracks `bytesUploaded`/`bytesDownloaded` per user per version
+- Unique constraint on `creatorId + slug` (no random suffix needed)
+
+### Web (`web/`)
+Vite + React 19 + Zustand + BrowserRouter SPA
+
+**Stores:** authStore, modelStore, libraryStore, creatorStore
+**Pages:** Home, Search, ModelDetail, UserProfile, Login, Register, Library, CreatorDashboard, CheckoutSuccess, CheckoutCancel
+**API client:** `api.ts` with auto-refresh on 401, serialized refresh lock, `pw_refresh_token` in localStorage
+
+### CLI (`cli/`)
+Commander-based: `login`, `search`, `pull` (checkout + torrent), `push` (create + upload), `list`, `seed`
+Config at `~/.peerweights/config.json`
+
+### Scripts
+- `scripts/create-admin.mjs` — Create admin user
+- `scripts/reseed-torrents.sh` — Re-add all published torrents to Transmission
+- `scripts/upload-model.mjs` — Bulk upload from manifest.json
 
 ---
 
-## Infrastructure (Planned)
+## API Endpoints Quick Reference
 
-Will share the same Hetzner VPS pattern as BoilerDeck, or potentially the same VPS with a separate nginx server block.
+### Auth (`/api/auth/*`)
+- `POST /register` — email, username, password, displayName
+- `POST /login` — email, password → tokens
+- `POST /refresh` — refresh token rotation
+- `POST /logout` — invalidate refresh token
+- `GET /me` — current user (requires auth)
+
+### Creator (`/api/creator/*`)
+- `POST /register` — become a creator (requires USER role)
+- `POST /stripe/onboard` — start Stripe Connect onboarding
+- `GET /stripe/callback?token=` — complete onboarding
+
+### Models (`/api/models/*`)
+- `GET /` — list published models (search, format, tag, sort, pagination)
+- `GET /user/:username` — user's public profile + models
+- `GET /user/:username/:slug` — model detail by namespace
+- `POST /` — create model (requires CREATOR)
+- `PUT /:id` — update model
+- `POST /:id/publish` — publish model
+- `POST /:id/unpublish` — unpublish model
+- `POST /:id/versions` — create version
+- `POST /:id/versions/:versionId/upload` — upload model file (up to 200GB)
+- `POST /:id/cover` — upload cover image
+- `GET /:id/cover` — serve cover image
+
+### Torrents (`/api/torrents/*`)
+- `GET /model/:modelId/latest` — get latest torrent info (requires license)
+- `GET /model/:modelId/latest/file` — download .torrent file (requires license)
+- `POST /seed-stats` — report seed progress
+- `GET /seed-stats/me` — get user's seed stats
+
+### Payments (`/api/payments/*`)
+- `POST /checkout` — start purchase (free=instant, paid=Stripe)
+- `POST /webhook` — Stripe webhook handler
+
+### Licenses (`/api/licenses`)
+- `GET /` — list user's licenses with seed stats
 
 ---
 
-## Git State
+## Local Development Setup
 
-- **Repo:** https://github.com/EthanGeisler/PeerWeights
-- **Branch:** main
-- **Status:** Initial commit
+```bash
+# 1. SSH tunnels to VPS (PostgreSQL + Redis)
+ssh -L 15432:127.0.0.1:5432 -L 16379:127.0.0.1:6379 root@204.168.133.38
+
+# 2. Start server (port 7480)
+npm run dev:server
+
+# 3. Start web (Vite, port 5173, proxies /api → localhost:7480)
+npm run dev:web
+
+# 4. Database operations
+npm run db:migrate    # Prisma migrate dev
+npm run db:generate   # Prisma generate
+```
+
+**Environment:** `server/.env` configured with SSH tunnel ports (15432 for PostgreSQL, 16379 for Redis), Stripe test key.
+
+---
+
+## VPS / Deployment
+
+**Target:** peerweights.com / 204.168.133.38 (same Hetzner VPS as BoilerDeck)
+
+```bash
+# Quick deploy (after initial setup)
+ssh root@204.168.133.38 "cd /opt/peerweights && git pull origin main && npm install"
+ssh root@204.168.133.38 "cd /opt/peerweights && npm run build:web"
+ssh root@204.168.133.38 "systemctl restart peerweights"
+```
+
+**Not yet deployed.** Still needs:
+- [ ] nginx server block for peerweights.com (port 7480, try_files for BrowserRouter)
+- [ ] SSL via certbot
+- [ ] systemd service file
+- [ ] `npm run build:web` on VPS
+- [ ] Stripe webhook endpoint configured in Stripe dashboard
+- [ ] Transmission daemon configured for model seeding
+- [ ] MODELS_DIR created (`/opt/peerweights/models`)
+
+---
+
+## Known Issues & Gotchas
+
+1. **ESM everywhere** — all packages use `"type": "module"`, imports must use `.js` extensions
+2. **Prisma client generation** — run `npm run db:generate` after schema changes or fresh install
+3. **Stripe raw body** — must be parsed BEFORE `express.json()` middleware (see `server/src/index.ts`)
+4. **Token rotation race** — `deleteMany` used instead of `delete` for idempotent refresh token cleanup
+5. **BrowserRouter** — nginx must have `try_files $uri /index.html` fallback (unlike BoilerDeck's HashRouter)
+6. **Cover images** — served from disk, probes `.jpg`, `.png`, `.webp` extensions
+7. **Transmission RPC** — 409 response is expected on first call (session ID handshake), retry with returned header
+8. **Port 7480** — not 3001 (BoilerDeck) or 3000 (common default)
+9. **Reserved usernames** — admin, api, creator, search, models, about, etc. checked at registration
 
 ---
 
 ## What's Next
 
-### Phase 1 — MVP
-- [ ] Server: auth (register/login/JWT), user profiles
-- [ ] Server: model CRUD (upload, metadata, listing, search)
-- [ ] Server: file upload pipeline (zip/safetensors → torrent creation → Transmission seeding)
-- [ ] Server: Stripe Connect payments (checkout, webhooks, creator payouts)
-- [ ] Web: storefront (browse, search, model detail pages)
-- [ ] Web: creator dashboard (upload models, manage listings, view sales)
-- [ ] Web: auth (login/register, session management)
-- [ ] Deploy to VPS
+### Immediate (deploy MVP)
+- [ ] Deploy to VPS (nginx, SSL, systemd, clone, install, migrate, build)
+- [ ] Configure Stripe webhook endpoint
+- [ ] Set up Transmission for model seeding
+- [ ] Smoke test full flow: register → create model → upload → purchase → download torrent
 
 ### Phase 2 — Growth
+- [ ] Electron desktop client (persistent seeding, WebTorrent)
 - [ ] Creator pro subscriptions
-- [ ] Model format auto-detection and metadata extraction
 - [ ] Reviews / ratings
-- [ ] Categories and tags
-- [ ] API for programmatic model downloads
+- [ ] Enhanced search (categories, filtering)
+- [ ] API keys for programmatic access
 
 ### Phase 3 — Scale
-- [ ] **Bitcoin Lightning payments** — alternative to Stripe via BTCPay Server, lower fees, no chargebacks, good for microtransactions. Alongside Stripe, not replacing it.
+- [ ] Bitcoin Lightning payments (BTCPay Server)
 - [ ] Seedbox tiers for creators
 - [ ] Model versioning and delta updates
 - [ ] Organization accounts

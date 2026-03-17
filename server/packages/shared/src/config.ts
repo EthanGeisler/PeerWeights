@@ -1,0 +1,33 @@
+import { z } from "zod";
+
+const envSchema = z.object({
+  DATABASE_URL: z.string(),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  JWT_ACCESS_SECRET: z.string().min(16),
+  JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PLATFORM_FEE_PERCENT: z.coerce.number().default(5),
+  STRIPE_CONNECT_RETURN_URL: z.string().optional(),
+  STRIPE_CONNECT_REFRESH_URL: z.string().optional(),
+  PORT: z.coerce.number().default(7480),
+  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173"),
+  CORS_ADDITIONAL_ORIGINS: z.string().default(""),
+  MODELS_DIR: z.string().default("/opt/peerweights/models"),
+  MODEL_UPLOAD_MAX_SIZE: z.coerce.number().default(200 * 1024 * 1024 * 1024), // 200GB
+  TRANSMISSION_RPC_URL: z.string().default("http://127.0.0.1:9091/transmission/rpc"),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+let _config: Env | null = null;
+
+export function getConfig(): Env {
+  if (!_config) {
+    _config = envSchema.parse(process.env);
+  }
+  return _config;
+}
