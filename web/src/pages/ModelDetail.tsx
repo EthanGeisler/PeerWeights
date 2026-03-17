@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useModelStore } from "../stores/modelStore";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useAuthStore } from "../stores/authStore";
+import { apiDownload } from "../api";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -35,6 +36,19 @@ export default function ModelDetail() {
 
   const m = currentModel;
   const owned = licenses.some((l) => l.model.id === m.id && l.status === "ACTIVE");
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const filename = `${m.username}-${m.slug}.torrent`;
+      await apiDownload(`/torrents/${m.id}/latest/file`, filename);
+    } catch (err: any) {
+      alert(err.message || "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleCheckout = async () => {
     try {
@@ -107,7 +121,19 @@ export default function ModelDetail() {
 
           {user ? (
             owned ? (
-              <div style={{ color: "var(--green)", fontWeight: 600 }}>Owned</div>
+              <div>
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="btn-primary"
+                  style={{ width: "100%", marginBottom: "0.5rem" }}
+                >
+                  {downloading ? "Preparing..." : "Download .torrent"}
+                </button>
+                <div style={{ color: "var(--green)", fontWeight: 600, fontSize: "0.85rem", textAlign: "center" }}>
+                  Owned
+                </div>
+              </div>
             ) : (
               <button onClick={handleCheckout} className="btn-primary" style={{ width: "100%" }}>
                 {m.priceCents === 0 ? "Get Model (Free)" : `Buy — $${(m.priceCents / 100).toFixed(2)}`}
